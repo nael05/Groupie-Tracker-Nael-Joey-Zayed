@@ -6,9 +6,7 @@ import (
 	"net/http"
 )
 
-// =======================
-// Struct pour un artiste
-// =======================
+
 type Artist struct {
 	ID           int      `json:"id"`
 	Image        string   `json:"image"`
@@ -18,9 +16,7 @@ type Artist struct {
 	FirstAlbum   string   `json:"firstAlbum"`
 }
 
-// =======================
-// Struct pour simplifier l'affichage / map
-// =======================
+
 type List_artist struct {
 	Name         string
 	Members      []string
