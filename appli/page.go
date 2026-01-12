@@ -62,7 +62,6 @@ func AfficherLeMenu() {
 			AfficherLesDetails(artistePourLeClic)
 		})
 
-		// Nom
 		etiquetteNom := widget.NewLabel(artistePourLeClic.Name)
 		etiquetteNom.Alignment = fyne.TextAlignCenter
 		etiquetteNom.TextStyle = fyne.TextStyle{Bold: true}
@@ -97,7 +96,7 @@ func AfficherLesDetails(artiste List_artist) {
 		grandeImage = canvas.NewImageFromResource(theme.MediaMusicIcon())
 	}
 	grandeImage.FillMode = canvas.ImageFillContain
-	grandeImage.SetMinSize(fyne.NewSize(400, 400))
+	grandeImage.SetMinSize(fyne.NewSize(350, 350))
 
 	lblNom := canvas.NewText(artiste.Name, color.Black)
 	lblNom.TextSize = 30
@@ -113,6 +112,31 @@ func AfficherLesDetails(artiste List_artist) {
 	lblMembresTitre := widget.NewLabelWithStyle("Membres :", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Underline: true})
 	lblMembresListe := widget.NewLabel("- " + listeMembres)
 
+	lblRelationsTitre := widget.NewLabelWithStyle("Concerts (Lieux & Dates) :", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Underline: true})
+
+	conteneurRelations := container.NewVBox()
+	
+	relations, errRel := GetRelations(artiste.RelationsUrl)
+	if errRel != nil {
+		conteneurRelations.Add(widget.NewLabel("Impossible de charger les infos concerts."))
+	} else {
+		for lieu, dates := range relations {
+			lieuPropre := strings.ReplaceAll(lieu, "_", " ")
+			lieuPropre = strings.Title(lieuPropre)
+			
+			lblLieu := canvas.NewText(lieuPropre, color.NRGBA{R: 0, G: 0, B: 150, A: 255})
+			lblLieu.TextStyle = fyne.TextStyle{Bold: true}
+			
+			datesStr := strings.Join(dates, ", ")
+			lblDates := widget.NewLabel(datesStr)
+			lblDates.Wrapping = fyne.TextWrapWord
+
+			conteneurRelations.Add(lblLieu)
+			conteneurRelations.Add(lblDates)
+			conteneurRelations.Add(layout.NewSpacer())
+		}
+	}
+
 	infosContainer := container.NewVBox(
 		lblNom,
 		widget.NewSeparator(),
@@ -121,10 +145,13 @@ func AfficherLesDetails(artiste List_artist) {
 		widget.NewSeparator(),
 		lblMembresTitre,
 		lblMembresListe,
+		widget.NewSeparator(),
+		lblRelationsTitre,
+		conteneurRelations,
 	)
 
 	split := container.NewHSplit(grandeImage, container.NewVScroll(infosContainer))
-	split.SetOffset(0.4) // 40% pour l'image, 60% pour le texte
+	split.SetOffset(0.4)
 
 	pageDetails := container.NewBorder(barreNavigation, nil, nil, nil, split)
 
