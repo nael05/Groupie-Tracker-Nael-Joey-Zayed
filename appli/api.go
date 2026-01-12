@@ -2,10 +2,8 @@ package appli
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
-
 
 type Artist struct {
 	ID           int      `json:"id"`
@@ -16,15 +14,15 @@ type Artist struct {
 	FirstAlbum   string   `json:"firstAlbum"`
 }
 
-
 type List_artist struct {
 	Name         string
 	Members      []string
 	CreationDate int
 	FirstAlbum   string
+	Image		string
 }
 
-func Api() {
+func Api() map[int]List_artist {
 	resp, err := http.Get("https://groupietrackers.herokuapp.com/api/artists")
 	if err != nil {
 		panic(err)
@@ -44,11 +42,9 @@ func Api() {
 			Members:      a.Members,
 			CreationDate: a.CreationDate,
 			FirstAlbum:   a.FirstAlbum,
+			Image:        a.Image,
 		}
 	}
 
-	for id, a := range list_artist {
-		fmt.Printf("ID : %d | Nom : %s | Membres : %v | Création : %d | Premier album : %s\n",
-			id, a.Name, a.Members, a.CreationDate, a.FirstAlbum)
-	}
+	return list_artist
 }
