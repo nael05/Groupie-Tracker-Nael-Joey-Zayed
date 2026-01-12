@@ -12,6 +12,7 @@ type Artist struct {
 	Members      []string `json:"members"`
 	CreationDate int      `json:"creationDate"`
 	FirstAlbum   string   `json:"firstAlbum"`
+	Relations    string   `json:"relations"`
 }
 
 type List_artist struct {
@@ -19,7 +20,13 @@ type List_artist struct {
 	Members      []string
 	CreationDate int
 	FirstAlbum   string
-	Image		string
+	Image        string
+	RelationsUrl string
+}
+
+type RelationsData struct {
+	ID             int                 `json:"id"`
+	DatesLocations map[string][]string `json:"datesLocations"`
 }
 
 func Api() map[int]List_artist {
@@ -43,8 +50,23 @@ func Api() map[int]List_artist {
 			CreationDate: a.CreationDate,
 			FirstAlbum:   a.FirstAlbum,
 			Image:        a.Image,
+			RelationsUrl: a.Relations,
 		}
 	}
 
 	return list_artist
+}
+
+func GetRelations(url string) (map[string][]string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var relData RelationsData
+	if err := json.NewDecoder(resp.Body).Decode(&relData); err != nil {
+		return nil, err
+	}
+	return relData.DatesLocations, nil
 }
