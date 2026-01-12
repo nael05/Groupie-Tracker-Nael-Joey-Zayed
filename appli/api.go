@@ -1,4 +1,4 @@
-package appli
+package groupie
 
 import (
 	"encoding/json"
