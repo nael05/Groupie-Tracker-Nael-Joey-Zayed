@@ -149,8 +149,8 @@ func AfficherLeMenu() {
 
     split := container.NewHSplit(colonneFiltres, conteneurDefilant)
     split.SetOffset(0.25)
-
-    titrePrincipal := canvas.NewText("Nos Artistes", color.Black)
+    
+    titrePrincipal := canvas.NewText("Artistes", color.Black)
     titrePrincipal.TextSize = 60
     titrePrincipal.TextStyle = fyne.TextStyle{Bold: true}
     titrePrincipal.Alignment = fyne.TextAlignCenter
