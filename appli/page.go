@@ -54,18 +54,15 @@ func OuvertureApp() {
 
 func AfficherLeMenu() {
 
-    // ---------- BARRE DE RECHERCHE ----------
     entryRecherche := widget.NewEntry()
     entryRecherche.SetPlaceHolder("Rechercher un artiste, membre, année...")
-    entryRecherche.SetText(rechercheActuelle) // Garde le texte précédent
+    entryRecherche.SetText(rechercheActuelle) 
     
-    // Conteneur pour la grille qu'on va mettre à jour
     grilleArtistes := container.NewGridWithColumns(4)
     conteneurDefilant := container.NewVScroll(grilleArtistes)
 
-    // Fonction pour rafraîchir seulement la grille
     rafraichirGrille := func() {
-        grilleArtistes.Objects = nil // Vide la grille
+        grilleArtistes.Objects = nil 
         
         artistesAffiches := FiltrerArtistes(tousLesArtistes, filtresActuels)
         artistesAffiches = RechercherArtistes(artistesAffiches, rechercheActuelle)
@@ -107,7 +104,6 @@ func AfficherLeMenu() {
         entryRecherche,
     )
 
-    // ---------- FILTRES ----------
     entryCreationMin := widget.NewEntry()
     entryCreationMin.SetPlaceHolder("Année min")
     entryCreationMax := widget.NewEntry()
@@ -172,8 +168,7 @@ func AfficherLeMenu() {
         btnAppliquer,
         btnReset,
     )
-
-    // Remplir la grille au démarrage
+    
     rafraichirGrille()
 
     split := container.NewHSplit(colonneFiltres, conteneurDefilant)
