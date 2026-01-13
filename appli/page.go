@@ -21,6 +21,7 @@ var tousLesArtistes []List_artist
 var lApplication fyne.App
 
 var filtresActuels FilterOptions
+var rechercheActuelle string
 
 type FilterOptions struct {
     CreationMin   int
@@ -53,6 +54,60 @@ func OuvertureApp() {
 
 func AfficherLeMenu() {
 
+    // ---------- BARRE DE RECHERCHE ----------
+    entryRecherche := widget.NewEntry()
+    entryRecherche.SetPlaceHolder("Rechercher un artiste, membre, année...")
+    entryRecherche.SetText(rechercheActuelle) // Garde le texte précédent
+    
+    // Conteneur pour la grille qu'on va mettre à jour
+    grilleArtistes := container.NewGridWithColumns(4)
+    conteneurDefilant := container.NewVScroll(grilleArtistes)
+
+    // Fonction pour rafraîchir seulement la grille
+    rafraichirGrille := func() {
+        grilleArtistes.Objects = nil // Vide la grille
+        
+        artistesAffiches := FiltrerArtistes(tousLesArtistes, filtresActuels)
+        artistesAffiches = RechercherArtistes(artistesAffiches, rechercheActuelle)
+
+        for _, artisteCourant := range artistesAffiches {
+            var imageDeBase *canvas.Image
+            lienImage, erreur := storage.ParseURI(artisteCourant.Image)
+            if erreur == nil {
+                imageDeBase = canvas.NewImageFromURI(lienImage)
+            } else {
+                imageDeBase = canvas.NewImageFromResource(theme.MediaMusicIcon())
+            }
+            imageDeBase.FillMode = canvas.ImageFillContain
+            imageDeBase.SetMinSize(fyne.NewSize(150, 150))
+
+            artistePourLeClic := artisteCourant
+            imageInteractive := NewImageCliquable(imageDeBase, func() {
+                AfficherLesDetails(artistePourLeClic)
+            })
+
+            etiquetteNom := widget.NewLabel(artistePourLeClic.Name)
+            etiquetteNom.Alignment = fyne.TextAlignCenter
+            etiquetteNom.TextStyle = fyne.TextStyle{Bold: true}
+
+            carteArtiste := container.NewVBox(imageInteractive, etiquetteNom)
+            grilleArtistes.Add(carteArtiste)
+        }
+        grilleArtistes.Refresh()
+    }
+
+    entryRecherche.OnChanged = func(texte string) {
+        rechercheActuelle = texte
+        rafraichirGrille()
+    }
+
+    barreRecherche := container.NewBorder(nil, nil, 
+        widget.NewIcon(theme.SearchIcon()), 
+        nil, 
+        entryRecherche,
+    )
+
+    // ---------- FILTRES ----------
     entryCreationMin := widget.NewEntry()
     entryCreationMin.SetPlaceHolder("Année min")
     entryCreationMax := widget.NewEntry()
@@ -92,11 +147,12 @@ func AfficherLeMenu() {
         }
         filtresActuels.MembersCounts = m
 
-        AfficherLeMenu()
+        rafraichirGrille()
     })
 
     btnReset := widget.NewButton("Réinitialiser", func() {
         filtresActuels = FilterOptions{}
+        rechercheActuelle = ""
         AfficherLeMenu()
     })
 
@@ -117,46 +173,24 @@ func AfficherLeMenu() {
         btnReset,
     )
 
-    grilleArtistes := container.NewGridWithColumns(4)
-
-    artistesAffiches := FiltrerArtistes(tousLesArtistes, filtresActuels)
-
-    for _, artisteCourant := range artistesAffiches {
-        var imageDeBase *canvas.Image
-        lienImage, erreur := storage.ParseURI(artisteCourant.Image)
-        if erreur == nil {
-            imageDeBase = canvas.NewImageFromURI(lienImage)
-        } else {
-            imageDeBase = canvas.NewImageFromResource(theme.MediaMusicIcon())
-        }
-        imageDeBase.FillMode = canvas.ImageFillContain
-        imageDeBase.SetMinSize(fyne.NewSize(150, 150))
-
-        artistePourLeClic := artisteCourant
-        imageInteractive := NewImageCliquable(imageDeBase, func() {
-            AfficherLesDetails(artistePourLeClic)
-        })
-
-        etiquetteNom := widget.NewLabel(artistePourLeClic.Name)
-        etiquetteNom.Alignment = fyne.TextAlignCenter
-        etiquetteNom.TextStyle = fyne.TextStyle{Bold: true}
-
-        carteArtiste := container.NewVBox(imageInteractive, etiquetteNom)
-        grilleArtistes.Add(carteArtiste)
-    }
-
-    conteneurDefilant := container.NewVScroll(grilleArtistes)
+    // Remplir la grille au démarrage
+    rafraichirGrille()
 
     split := container.NewHSplit(colonneFiltres, conteneurDefilant)
     split.SetOffset(0.25)
-    
+
     titrePrincipal := canvas.NewText("Artistes", color.Black)
     titrePrincipal.TextSize = 60
     titrePrincipal.TextStyle = fyne.TextStyle{Bold: true}
     titrePrincipal.Alignment = fyne.TextAlignCenter
 
-    contenuFinal := container.NewBorder(titrePrincipal, nil, nil, nil, split)
-    maFenetre.SetContent(contenuFinal)
+    contenuCentre := container.NewBorder(
+        container.NewVBox(titrePrincipal, barreRecherche), 
+        nil, nil, nil, 
+        split,
+    )
+
+    maFenetre.SetContent(contenuCentre)
 }
 
 func AfficherLesDetails(artiste List_artist) {
@@ -268,4 +302,44 @@ func matchMembersCountList(a List_artist, opts FilterOptions) bool {
         }
     }
     return false
+}
+
+func RechercherArtistes(artistes []List_artist, recherche string) []List_artist {
+    if recherche == "" {
+        return artistes
+    }
+
+    rechercheLower := strings.ToLower(recherche)
+    var result []List_artist
+
+    for _, a := range artistes {
+        if strings.Contains(strings.ToLower(a.Name), rechercheLower) {
+            result = append(result, a)
+            continue
+        }
+
+        membreTrouve := false
+        for _, membre := range a.Members {
+            if strings.Contains(strings.ToLower(membre), rechercheLower) {
+                membreTrouve = true
+                break
+            }
+        }
+        if membreTrouve {
+            result = append(result, a)
+            continue
+        }
+
+        if strings.Contains(strconv.Itoa(a.CreationDate), recherche) {
+            result = append(result, a)
+            continue
+        }
+
+        if strings.Contains(strings.ToLower(a.FirstAlbum), rechercheLower) {
+            result = append(result, a)
+            continue
+        }
+    }
+
+    return result
 }
