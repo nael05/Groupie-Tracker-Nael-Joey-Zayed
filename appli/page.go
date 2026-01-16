@@ -31,7 +31,7 @@ type FilterOptions struct {
 
 func OuvertureApp() {
 	lApplication = app.New()
-	lApplication.Settings().SetTheme(theme.LightTheme())
+	lApplication.Settings().SetTheme(theme.DarkTheme())
 
 	maFenetre = lApplication.NewWindow("Groupie Tracker nael-joey-zayed")
 	maFenetre.Resize(fyne.NewSize(1200, 800))
