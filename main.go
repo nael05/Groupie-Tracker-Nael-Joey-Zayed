@@ -1,7 +1,7 @@
 package main
 
 import (
-    appli "groupie-tracker/appli"
+    appli "groupie/appli"
 )
 
 func main() {
