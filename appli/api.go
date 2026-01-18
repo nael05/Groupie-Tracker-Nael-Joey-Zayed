@@ -3,6 +3,8 @@ package groupie
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strconv"
 )
 
 type Artist struct {
@@ -27,6 +29,12 @@ type List_artist struct {
 type RelationsData struct {
 	ID             int                 `json:"id"`
 	DatesLocations map[string][]string `json:"datesLocations"`
+}
+
+type geocodeResponse []struct {
+	Lat         string `json:"lat"`
+	Lon         string `json:"lon"`
+	DisplayName string `json:"display_name"`
 }
 
 func Api() map[int]List_artist {
@@ -69,4 +77,43 @@ func GetRelations(url string) (map[string][]string, error) {
 		return nil, err
 	}
 	return relData.DatesLocations, nil
+}
+
+func GeocodeLocation(query string) (float64, float64, string, error) {
+	values := url.Values{}
+	values.Set("q", query)
+	values.Set("format", "json")
+	values.Set("limit", "1")
+
+	req, err := http.NewRequest("GET", "https://nominatim.openstreetmap.org/search", nil)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	req.URL.RawQuery = values.Encode()
+	req.Header.Set("User-Agent", "GroupieTracker/1.0")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	defer resp.Body.Close()
+
+	var geo geocodeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&geo); err != nil {
+		return 0, 0, "", err
+	}
+	if len(geo) == 0 {
+		return 0, 0, "", nil
+	}
+
+	lat, err := strconv.ParseFloat(geo[0].Lat, 64)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	lon, err := strconv.ParseFloat(geo[0].Lon, 64)
+	if err != nil {
+		return 0, 0, "", err
+	}
+
+	return lat, lon, geo[0].DisplayName, nil
 }
