@@ -1,23 +1,24 @@
 package groupie
 
 import (
-    "fmt"
-    "image/color"
-    "math"
-    "net/http"
-    "sort"
-    "strconv"
-    "strings"
+	"fmt"
+	"image/color"
+	"math"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 
-    "fyne.io/fyne/v2"
-    "fyne.io/fyne/v2/app"
-    "fyne.io/fyne/v2/canvas"
-    "fyne.io/fyne/v2/container"
-    "fyne.io/fyne/v2/dialog"
-    "fyne.io/fyne/v2/layout"
-    "fyne.io/fyne/v2/storage"
-    "fyne.io/fyne/v2/theme"
-    "fyne.io/fyne/v2/widget"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 )
 
 var maFenetre fyne.Window
@@ -28,529 +29,543 @@ var filtresActuels FilterOptions
 var rechercheActuelle string
 
 type FilterOptions struct {
-    CreationMin   int
-    CreationMax   int
-    FirstAlbumMin int
-    FirstAlbumMax int
-    MembersCounts []int
-    Locations     []string
+	CreationMin   int
+	CreationMax   int
+	FirstAlbumMin int
+	FirstAlbumMax int
+	MembersCounts []int
+	Locations     []string
 }
 
 func OuvertureApp() {
-    lApplication = app.New()
-    lApplication.Settings().SetTheme(theme.DarkTheme())
+	lApplication = app.New()
+	lApplication.Settings().SetTheme(theme.DarkTheme())
 
-    maFenetre = lApplication.NewWindow("Groupie Tracker nael-joey-zayed")
-    maFenetre.Resize(fyne.NewSize(1200, 800))
-    maFenetre.CenterOnScreen()
+	maFenetre = lApplication.NewWindow("Groupie Tracker nael-joey-zayed")
+	maFenetre.Resize(fyne.NewSize(1200, 800))
+	maFenetre.CenterOnScreen()
 
-    dictionnaireArtistes := Api()
-    for _, artiste := range dictionnaireArtistes {
-        tousLesArtistes = append(tousLesArtistes, artiste)
-    }
-    sort.Slice(tousLesArtistes, func(i, j int) bool {
-        return tousLesArtistes[i].Name < tousLesArtistes[j].Name
-    })
+	dictionnaireArtistes := Api()
+	for _, artiste := range dictionnaireArtistes {
+		tousLesArtistes = append(tousLesArtistes, artiste)
+	}
+	sort.Slice(tousLesArtistes, func(i, j int) bool {
+		return tousLesArtistes[i].Name < tousLesArtistes[j].Name
+	})
 
-    AfficherLeMenu()
-    maFenetre.ShowAndRun()
+	AfficherLeMenu()
+	maFenetre.ShowAndRun()
 }
 
 func AfficherLeMenu() {
-    entryRecherche := widget.NewEntry()
-    entryRecherche.SetPlaceHolder("Rechercher un artiste, membre, année, lieu...")
-    entryRecherche.SetText(rechercheActuelle)
+	// On nettoie les handlers clavier éventuels pour éviter les effets bizarres
+	if desk, ok := maFenetre.Canvas().(desktop.Canvas); ok {
+		desk.SetOnKeyDown(nil)
+	}
 
-    grilleArtistes := container.NewGridWithColumns(4)
-    conteneurDefilant := container.NewVScroll(grilleArtistes)
+	entryRecherche := widget.NewEntry()
+	entryRecherche.SetPlaceHolder("Rechercher un artiste, membre, année, lieu...")
+	entryRecherche.SetText(rechercheActuelle)
 
-    rafraichirGrille := func() {
-        grilleArtistes.Objects = nil
+	grilleArtistes := container.NewGridWithColumns(4)
+	conteneurDefilant := container.NewVScroll(grilleArtistes)
 
-        artistesAffiches := FiltrerArtistes(tousLesArtistes, filtresActuels)
-        artistesAffiches = RechercherArtistes(artistesAffiches, rechercheActuelle)
+	rafraichirGrille := func() {
+		grilleArtistes.Objects = nil
 
-        for _, a := range artistesAffiches {
-            var img *canvas.Image
-            if uri, err := storage.ParseURI(a.Image); err == nil {
-                img = canvas.NewImageFromURI(uri)
-            } else {
-                img = canvas.NewImageFromResource(theme.MediaMusicIcon())
-            }
-            img.FillMode = canvas.ImageFillContain
-            img.SetMinSize(fyne.NewSize(150, 150))
+		artistesAffiches := FiltrerArtistes(tousLesArtistes, filtresActuels)
+		artistesAffiches = RechercherArtistes(artistesAffiches, rechercheActuelle)
 
-            imgCliq := NewImageCliquable(img, func(art List_artist) func() {
-                return func() { AfficherLesDetails(art) }
-            }(a))
+		for _, a := range artistesAffiches {
+			var img *canvas.Image
+			if uri, err := storage.ParseURI(a.Image); err == nil {
+				img = canvas.NewImageFromURI(uri)
+			} else {
+				img = canvas.NewImageFromResource(theme.MediaMusicIcon())
+			}
+			img.FillMode = canvas.ImageFillContain
+			img.SetMinSize(fyne.NewSize(150, 150))
 
-            lbl := widget.NewLabel(a.Name)
-            lbl.Alignment = fyne.TextAlignCenter
-            lbl.TextStyle = fyne.TextStyle{Bold: true}
+			imgCliq := NewImageCliquable(img, func(art List_artist) func() {
+				return func() { AfficherLesDetails(art) }
+			}(a))
 
-            grilleArtistes.Add(container.NewVBox(imgCliq, lbl))
-        }
-        grilleArtistes.Refresh()
-    }
+			lbl := widget.NewLabel(a.Name)
+			lbl.Alignment = fyne.TextAlignCenter
+			lbl.TextStyle = fyne.TextStyle{Bold: true}
 
-    entryRecherche.OnChanged = func(texte string) {
-        rechercheActuelle = texte
-        rafraichirGrille()
-    }
+			grilleArtistes.Add(container.NewVBox(imgCliq, lbl))
+		}
+		grilleArtistes.Refresh()
+	}
 
-    barreRecherche := container.NewBorder(nil, nil,
-        widget.NewIcon(theme.SearchIcon()),
-        nil,
-        entryRecherche,
-    )
+	entryRecherche.OnChanged = func(texte string) {
+		rechercheActuelle = texte
+		rafraichirGrille()
+	}
 
-    // Filtres : création
-    entryCreationMin := widget.NewEntry()
-    entryCreationMin.SetPlaceHolder("Année création min")
-    entryCreationMax := widget.NewEntry()
-    entryCreationMax.SetPlaceHolder("Année création max")
+	barreRecherche := container.NewBorder(nil, nil,
+		widget.NewIcon(theme.SearchIcon()),
+		nil,
+		entryRecherche,
+	)
 
-    // Filtres : premier album (année)
-    entryAlbumMin := widget.NewEntry()
-    entryAlbumMin.SetPlaceHolder("Premier album min (YYYY)")
-    entryAlbumMax := widget.NewEntry()
-    entryAlbumMax.SetPlaceHolder("Premier album max (YYYY)")
+	// Filtres : création
+	entryCreationMin := widget.NewEntry()
+	entryCreationMin.SetPlaceHolder("Année création min")
+	entryCreationMax := widget.NewEntry()
+	entryCreationMax.SetPlaceHolder("Année création max")
 
-    // Filtres : nombre de membres (checkbox)
-    chk1 := widget.NewCheck("1 membre", nil)
-    chk2 := widget.NewCheck("2 membres", nil)
-    chk3 := widget.NewCheck("3 membres", nil)
-    chk4 := widget.NewCheck("4+ membres", nil)
+	// Filtres : premier album (année)
+	entryAlbumMin := widget.NewEntry()
+	entryAlbumMin.SetPlaceHolder("Premier album min (YYYY)")
+	entryAlbumMax := widget.NewEntry()
+	entryAlbumMax.SetPlaceHolder("Premier album max (YYYY)")
 
-    // Filtres : lieux de concerts (champ texte, séparés par virgule)
-    entryLocations := widget.NewEntry()
-    entryLocations.SetPlaceHolder("Lieux concerts (séparés par , ex: Paris, USA)")
+	// Filtres : nombre de membres (checkbox)
+	chk1 := widget.NewCheck("1 membre", nil)
+	chk2 := widget.NewCheck("2 membres", nil)
+	chk3 := widget.NewCheck("3 membres", nil)
+	chk4 := widget.NewCheck("4+ membres", nil)
 
-    btnAppliquer := widget.NewButton("Appliquer les filtres", func() {
-        parseVal := func(s string) int {
-            if v, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
-                return v
-            }
-            return 0
-        }
+	// Filtres : lieux de concerts (champ texte, séparés par virgule)
+	entryLocations := widget.NewEntry()
+	entryLocations.SetPlaceHolder("Lieux concerts (séparés par , ex: Paris, USA)")
 
-        filtresActuels = FilterOptions{
-            CreationMin:   parseVal(entryCreationMin.Text),
-            CreationMax:   parseVal(entryCreationMax.Text),
-            FirstAlbumMin: parseVal(entryAlbumMin.Text),
-            FirstAlbumMax: parseVal(entryAlbumMax.Text),
-        }
+	btnAppliquer := widget.NewButton("Appliquer les filtres", func() {
+		parseVal := func(s string) int {
+			if v, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
+				return v
+			}
+			return 0
+		}
 
-        // reset des listes pour éviter l'accumulation
-        filtresActuels.MembersCounts = nil
-        for i, chk := range []*widget.Check{chk1, chk2, chk3, chk4} {
-            if chk.Checked {
-                if i == 3 {
-                    filtresActuels.MembersCounts = append(filtresActuels.MembersCounts, 4, 5, 6, 7, 8)
-                } else {
-                    filtresActuels.MembersCounts = append(filtresActuels.MembersCounts, i+1)
-                }
-            }
-        }
+		filtresActuels = FilterOptions{
+			CreationMin:   parseVal(entryCreationMin.Text),
+			CreationMax:   parseVal(entryCreationMax.Text),
+			FirstAlbumMin: parseVal(entryAlbumMin.Text),
+			FirstAlbumMax: parseVal(entryAlbumMax.Text),
+		}
 
-        // Lieux (séparés par virgule)
-        filtresActuels.Locations = nil
-        if strings.TrimSpace(entryLocations.Text) != "" {
-            for _, loc := range strings.Split(entryLocations.Text, ",") {
-                l := strings.ToLower(strings.TrimSpace(loc))
-                if l != "" {
-                    filtresActuels.Locations = append(filtresActuels.Locations, l)
-                }
-            }
-        }
+		// reset des listes pour éviter l'accumulation
+		filtresActuels.MembersCounts = nil
+		for i, chk := range []*widget.Check{chk1, chk2, chk3, chk4} {
+			if chk.Checked {
+				if i == 3 {
+					filtresActuels.MembersCounts = append(filtresActuels.MembersCounts, 4, 5, 6, 7, 8)
+				} else {
+					filtresActuels.MembersCounts = append(filtresActuels.MembersCounts, i+1)
+				}
+			}
+		}
 
-        rafraichirGrille()
-    })
+		// Lieux (séparés par virgule)
+		filtresActuels.Locations = nil
+		if strings.TrimSpace(entryLocations.Text) != "" {
+			for _, loc := range strings.Split(entryLocations.Text, ",") {
+				l := strings.ToLower(strings.TrimSpace(loc))
+				if l != "" {
+					filtresActuels.Locations = append(filtresActuels.Locations, l)
+				}
+			}
+		}
 
-    btnReset := widget.NewButton("Réinitialiser", func() {
-        filtresActuels = FilterOptions{}
-        rechercheActuelle = ""
-        entryRecherche.SetText("")
-        entryCreationMin.SetText("")
-        entryCreationMax.SetText("")
-        entryAlbumMin.SetText("")
-        entryAlbumMax.SetText("")
-        entryLocations.SetText("")
-        chk1.SetChecked(false)
-        chk2.SetChecked(false)
-        chk3.SetChecked(false)
-        chk4.SetChecked(false)
-        AfficherLeMenu()
-    })
+		rafraichirGrille()
+	})
 
-    colonneFiltres := container.NewVBox(
-        widget.NewLabelWithStyle("Filtres", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-        widget.NewSeparator(),
-        widget.NewLabel("Date de création :"),
-        entryCreationMin,
-        entryCreationMax,
-        widget.NewSeparator(),
-        widget.NewLabel("Premier album (année) :"),
-        entryAlbumMin,
-        entryAlbumMax,
-        widget.NewSeparator(),
-        widget.NewLabel("Membres :"),
-        chk1, chk2, chk3, chk4,
-        widget.NewSeparator(),
-        widget.NewLabel("Lieux de concerts :"),
-        entryLocations,
-        widget.NewSeparator(),
-        btnAppliquer,
-        btnReset,
-    )
+	btnReset := widget.NewButton("Réinitialiser", func() {
+		filtresActuels = FilterOptions{}
+		rechercheActuelle = ""
+		entryRecherche.SetText("")
+		entryCreationMin.SetText("")
+		entryCreationMax.SetText("")
+		entryAlbumMin.SetText("")
+		entryAlbumMax.SetText("")
+		entryLocations.SetText("")
+		chk1.SetChecked(false)
+		chk2.SetChecked(false)
+		chk3.SetChecked(false)
+		chk4.SetChecked(false)
+		AfficherLeMenu()
+	})
 
-    rafraichirGrille()
+	colonneFiltres := container.NewVBox(
+		widget.NewLabelWithStyle("Filtres", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewSeparator(),
+		widget.NewLabel("Date de création :"),
+		entryCreationMin,
+		entryCreationMax,
+		widget.NewSeparator(),
+		widget.NewLabel("Premier album (année) :"),
+		entryAlbumMin,
+		entryAlbumMax,
+		widget.NewSeparator(),
+		widget.NewLabel("Membres :"),
+		chk1, chk2, chk3, chk4,
+		widget.NewSeparator(),
+		widget.NewLabel("Lieux de concerts :"),
+		entryLocations,
+		widget.NewSeparator(),
+		btnAppliquer,
+		btnReset,
+	)
 
-    split := container.NewHSplit(container.NewVScroll(colonneFiltres), conteneurDefilant)
-    split.SetOffset(0.20)
+	rafraichirGrille()
 
-    titrePrincipal := canvas.NewText("Artistes", color.White)
-    titrePrincipal.TextSize = 40
-    titrePrincipal.TextStyle = fyne.TextStyle{Bold: true}
-    titrePrincipal.Alignment = fyne.TextAlignCenter
+	split := container.NewHSplit(container.NewVScroll(colonneFiltres), conteneurDefilant)
+	split.SetOffset(0.20)
 
-    contenuCentre := container.NewBorder(
-        container.NewVBox(titrePrincipal, barreRecherche),
-        nil, nil, nil,
-        split,
-    )
+	titrePrincipal := canvas.NewText("Artistes", color.White)
+	titrePrincipal.TextSize = 40
+	titrePrincipal.TextStyle = fyne.TextStyle{Bold: true}
+	titrePrincipal.Alignment = fyne.TextAlignCenter
 
-    maFenetre.SetContent(contenuCentre)
+	contenuCentre := container.NewBorder(
+		container.NewVBox(titrePrincipal, barreRecherche),
+		nil, nil, nil,
+		split,
+	)
+
+	maFenetre.SetContent(contenuCentre)
 }
 
 func AfficherLesDetails(artiste List_artist) {
-    boutonHome := widget.NewButtonWithIcon("Retour", theme.HomeIcon(), func() {
-        AfficherLeMenu()
-    })
+	boutonHome := widget.NewButtonWithIcon("Retour", theme.HomeIcon(), func() {
+		AfficherLeMenu()
+	})
 
-    barreNavigation := container.NewHBox(layout.NewSpacer(), boutonHome)
+	barreNavigation := container.NewHBox(layout.NewSpacer(), boutonHome)
 
-    var img *canvas.Image
-    if uri, err := storage.ParseURI(artiste.Image); err == nil {
-        img = canvas.NewImageFromURI(uri)
-    } else {
-        img = canvas.NewImageFromResource(theme.MediaMusicIcon())
-    }
-    img.FillMode = canvas.ImageFillContain
-    img.SetMinSize(fyne.NewSize(350, 350))
+	var img *canvas.Image
+	if uri, err := storage.ParseURI(artiste.Image); err == nil {
+		img = canvas.NewImageFromURI(uri)
+	} else {
+		img = canvas.NewImageFromResource(theme.MediaMusicIcon())
+	}
+	img.FillMode = canvas.ImageFillContain
+	img.SetMinSize(fyne.NewSize(350, 350))
 
-    nomTxt := canvas.NewText(artiste.Name, color.Black)
-    nomTxt.TextSize = 30
-    nomTxt.TextStyle = fyne.TextStyle{Bold: true}
+	nomTxt := canvas.NewText(artiste.Name, color.Black)
+	nomTxt.TextSize = 30
+	nomTxt.TextStyle = fyne.TextStyle{Bold: true}
 
-    dateLbl := widget.NewLabelWithStyle(
-        "Date de création : "+strconv.Itoa(artiste.CreationDate),
-        fyne.TextAlignLeading, fyne.TextStyle{Italic: true},
-    )
+	dateLbl := widget.NewLabelWithStyle(
+		"Date de création : "+strconv.Itoa(artiste.CreationDate),
+		fyne.TextAlignLeading, fyne.TextStyle{Italic: true},
+	)
 
-    albumLbl := widget.NewLabel("Premier Album : " + artiste.FirstAlbum)
-    albumLbl.TextStyle = fyne.TextStyle{Bold: true}
+	albumLbl := widget.NewLabel("Premier Album : " + artiste.FirstAlbum)
+	albumLbl.TextStyle = fyne.TextStyle{Bold: true}
 
-    membresTitre := widget.NewLabelWithStyle("Membres :", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Underline: true})
-    membresListe := widget.NewLabel("- " + strings.Join(artiste.Members, "\n- "))
+	membresTitre := widget.NewLabelWithStyle("Membres :", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Underline: true})
+	membresListe := widget.NewLabel("- " + strings.Join(artiste.Members, "\n- "))
 
-    relationsTitre := widget.NewLabelWithStyle("Concerts (Lieux & Dates) :", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Underline: true})
+	relationsTitre := widget.NewLabelWithStyle("Concerts (Lieux & Dates) :", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Underline: true})
 
-    conteneurRelations := container.NewVBox()
+	conteneurRelations := container.NewVBox()
 
-    relations, errRel := GetRelations(artiste.RelationsUrl)
-    if errRel != nil {
-        conteneurRelations.Add(widget.NewLabel("Impossible de charger les infos concerts."))
-    } else {
-        for lieu, dates := range relations {
-            lieuPropre := strings.Title(strings.ReplaceAll(lieu, "_", " "))
-            btn := widget.NewButton(lieuPropre, func(l string) func() {
-                return func() { AfficherCarte(l) }
-            }(lieuPropre))
-            btn.Importance = widget.HighImportance
-            lbl := widget.NewLabel(strings.Join(dates, ", "))
-            lbl.Wrapping = fyne.TextWrapWord
-            conteneurRelations.Add(btn)
-            conteneurRelations.Add(lbl)
-            conteneurRelations.Add(layout.NewSpacer())
-        }
-    }
+	relations, errRel := GetRelations(artiste.RelationsUrl)
+	if errRel != nil {
+		conteneurRelations.Add(widget.NewLabel("Impossible de charger les infos concerts."))
+	} else {
+		for lieu, dates := range relations {
+			lieuPropre := strings.Title(strings.ReplaceAll(lieu, "_", " "))
+			btn := widget.NewButton(lieuPropre, func(l string) func() {
+				return func() { AfficherCarte(l) }
+			}(lieuPropre))
+			btn.Importance = widget.HighImportance
+			lbl := widget.NewLabel(strings.Join(dates, ", "))
+			lbl.Wrapping = fyne.TextWrapWord
+			conteneurRelations.Add(btn)
+			conteneurRelations.Add(lbl)
+			conteneurRelations.Add(layout.NewSpacer())
+		}
+	}
 
-    infosContainer := container.NewVBox(
-        nomTxt,
-        widget.NewSeparator(),
-        dateLbl,
-        albumLbl,
-        widget.NewSeparator(),
-        membresTitre,
-        membresListe,
-        widget.NewSeparator(),
-        relationsTitre,
-        conteneurRelations,
-    )
+	infosContainer := container.NewVBox(
+		nomTxt,
+		widget.NewSeparator(),
+		dateLbl,
+		albumLbl,
+		widget.NewSeparator(),
+		membresTitre,
+		membresListe,
+		widget.NewSeparator(),
+		relationsTitre,
+		conteneurRelations,
+	)
 
-    split := container.NewHSplit(img, container.NewVScroll(infosContainer))
-    split.SetOffset(0.4)
+	split := container.NewHSplit(img, container.NewVScroll(infosContainer))
+	split.SetOffset(0.4)
 
-    pageDetails := container.NewBorder(barreNavigation, nil, nil, nil, split)
+	pageDetails := container.NewBorder(barreNavigation, nil, nil, nil, split)
 
-    maFenetre.SetContent(pageDetails)
+	maFenetre.SetContent(pageDetails)
+
+	// Raccourci Esc pour revenir au menu
+	if desk, ok := maFenetre.Canvas().(desktop.Canvas); ok {
+		desk.SetOnKeyDown(func(ev *fyne.KeyEvent) {
+			if ev.Name == fyne.KeyEscape {
+				AfficherLeMenu()
+			}
+		})
+	}
 }
 
 func AfficherCarte(lieu string) {
-    lat, lon, nomComplet, err := GeocodeLocation(lieu)
-    if err != nil {
-        dialog.NewInformation("Localisation", "Impossible de récupérer la géolocalisation.", maFenetre).Show()
-        return
-    }
-    if nomComplet == "" {
-        dialog.NewInformation("Localisation", "Aucun résultat trouvé pour ce lieu.", maFenetre).Show()
-        return
-    }
+	lat, lon, nomComplet, err := GeocodeLocation(lieu)
+	if err != nil {
+		dialog.NewInformation("Localisation", "Impossible de récupérer la géolocalisation.", maFenetre).Show()
+		return
+	}
+	if nomComplet == "" {
+		dialog.NewInformation("Localisation", "Aucun résultat trouvé pour ce lieu.", maFenetre).Show()
+		return
+	}
 
-    const tuileW, tuileH float32 = 256, 256
-    const grille = 3
-    const mapW = tuileW * grille
-    const mapH = tuileH * grille
+	const tuileW, tuileH float32 = 256, 256
+	const grille = 3
+	const mapW = tuileW * grille
+	const mapH = tuileH * grille
 
-    zoom := 5
+	zoom := 5
 
-    containerMap := container.NewWithoutLayout()
-    containerMap.Resize(fyne.NewSize(mapW, mapH))
+	containerMap := container.NewWithoutLayout()
+	containerMap.Resize(fyne.NewSize(mapW, mapH))
 
-    xTuileCenter, yTuileCenter := calculerIndiceTuile(lat, lon, zoom)
+	xTuileCenter, yTuileCenter := calculerIndiceTuile(lat, lon, zoom)
 
-    for dy := -1; dy <= 1; dy++ {
-        for dx := -1; dx <= 1; dx++ {
-            xTuile := xTuileCenter + dx
-            yTuile := yTuileCenter + dy
-            mapURL := fmt.Sprintf("https://tile.openstreetmap.org/%d/%d/%d.png", zoom, xTuile, yTuile)
-            tuile, err := chargerImageCarteAvecRetry(mapURL)
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			xTuile := xTuileCenter + dx
+			yTuile := yTuileCenter + dy
+			mapURL := fmt.Sprintf("https://tile.openstreetmap.org/%d/%d/%d.png", zoom, xTuile, yTuile)
+			tuile, err := chargerImageCarteAvecRetry(mapURL)
 
-            if err == nil {
-                tuile.Resize(fyne.NewSize(tuileW, tuileH))
-                posX := float32(dx+1) * tuileW
-                posY := float32(dy+1) * tuileH
-                tuile.Move(fyne.NewPos(posX, posY))
-                containerMap.Add(tuile)
-            }
-        }
-    }
+			if err == nil {
+				tuile.Resize(fyne.NewSize(tuileW, tuileH))
+				posX := float32(dx+1) * tuileW
+				posY := float32(dy+1) * tuileH
+				tuile.Move(fyne.NewPos(posX, posY))
+				containerMap.Add(tuile)
+			}
+		}
+	}
 
-    xPrecis, yPrecis := calculerPositionPixel(lat, lon, zoom, xTuileCenter, yTuileCenter, tuileW, tuileH, grille)
+	xPrecis, yPrecis := calculerPositionPixel(lat, lon, zoom, xTuileCenter, yTuileCenter, tuileW, tuileH, grille)
 
-    marqueur := canvas.NewCircle(color.NRGBA{R: 255, G: 0, B: 0, A: 255})
-    marqueur.Resize(fyne.NewSize(14, 14))
+	marqueur := canvas.NewCircle(color.NRGBA{R: 255, G: 0, B: 0, A: 255})
+	marqueur.Resize(fyne.NewSize(14, 14))
 
-    if xPrecis >= 0 && xPrecis <= mapW && yPrecis >= 0 && yPrecis <= mapH {
-        marqueur.Move(fyne.NewPos(xPrecis-7, yPrecis-7))
-        containerMap.Add(marqueur)
-    }
+	if xPrecis >= 0 && xPrecis <= mapW && yPrecis >= 0 && yPrecis <= mapH {
+		marqueur.Move(fyne.NewPos(xPrecis-7, yPrecis-7))
+		containerMap.Add(marqueur)
+	}
 
-    info := widget.NewLabel(nomComplet)
-    info.Wrapping = fyne.TextWrapWord
-    info.TextStyle = fyne.TextStyle{Bold: true}
+	info := widget.NewLabel(nomComplet)
+	info.Wrapping = fyne.TextWrapWord
+	info.TextStyle = fyne.TextStyle{Bold: true}
 
-    scrollMap := container.NewVScroll(container.NewHScroll(containerMap))
-    scrollMap.SetMinSize(fyne.NewSize(800, 500))
+	scrollMap := container.NewVScroll(container.NewHScroll(containerMap))
+	scrollMap.SetMinSize(fyne.NewSize(800, 500))
 
-    contenu := container.NewVBox(info, scrollMap)
-    dialog.NewCustom("Localisation - OpenStreetMap", "Fermer", contenu, maFenetre).Show()
+	contenu := container.NewVBox(info, scrollMap)
+	dialog.NewCustom("Localisation - OpenStreetMap", "Fermer", contenu, maFenetre).Show()
 }
 
 func calculerIndiceTuile(lat, lon float64, zoom int) (int, int) {
-    divisor := uint64(1) << uint(zoom)
-    x := int((lon + 180.0) / 360.0 * float64(divisor))
-    y := int((1 - math.Log(math.Tan(lat*math.Pi/180)+1/math.Cos(lat*math.Pi/180))/math.Pi) / 2 * float64(divisor))
-    return x, y
+	divisor := uint64(1) << uint(zoom)
+	x := int((lon + 180.0) / 360.0 * float64(divisor))
+	y := int((1 - math.Log(math.Tan(lat*math.Pi/180)+1/math.Cos(lat*math.Pi/180))/math.Pi) / 2 * float64(divisor))
+	return x, y
 }
 
 func calculerPositionPixel(lat, lon float64, zoom int, xCenter, yCenter int, tuileW, tuileH float32, grille float32) (float32, float32) {
-    n := math.Pow(2, float64(zoom))
+	n := math.Pow(2, float64(zoom))
 
-    xExact := (lon + 180.0) / 360.0 * n
-    latRad := lat * math.Pi / 180.0
-    yExact := (1.0 - math.Log(math.Tan(latRad)+1.0/math.Cos(latRad))/math.Pi) / 2.0 * n
+	xExact := (lon + 180.0) / 360.0 * n
+	latRad := lat * math.Pi / 180.0
+	yExact := (1.0 - math.Log(math.Tan(latRad)+1.0/math.Cos(latRad))/math.Pi) / 2.0 * n
 
-    xCenterFloat := float64(xCenter)
-    yCenterFloat := float64(yCenter)
+	xCenterFloat := float64(xCenter)
+	yCenterFloat := float64(yCenter)
 
-    xDelta := (xExact - xCenterFloat) * 256.0
-    yDelta := (yExact - yCenterFloat) * 256.0
+	xDelta := (xExact - xCenterFloat) * 256.0
+	yDelta := (yExact - yCenterFloat) * 256.0
 
-    centerOffsetX := (float32(grille) - 1.0) / 2.0 * tuileW
-    centerOffsetY := (float32(grille) - 1.0) / 2.0 * tuileH
+	centerOffsetX := (float32(grille) - 1.0) / 2.0 * tuileW
+	centerOffsetY := (float32(grille) - 1.0) / 2.0 * tuileH
 
-    xPixel := centerOffsetX + float32(xDelta)
-    yPixel := centerOffsetY + float32(yDelta)
+	xPixel := centerOffsetX + float32(xDelta)
+	yPixel := centerOffsetY + float32(yDelta)
 
-    return xPixel, yPixel
+	return xPixel, yPixel
 }
 
 func chargerImageCarteAvecRetry(url string) (*canvas.Image, error) {
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        return nil, err
-    }
-    req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-    req.Header.Set("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*")
 
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-    if resp.StatusCode != http.StatusOK {
-        return nil, fmt.Errorf("statut %d", resp.StatusCode)
-    }
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("statut %d", resp.StatusCode)
+	}
 
-    img := canvas.NewImageFromReader(resp.Body, url)
-    if img == nil {
-        return nil, fmt.Errorf("image invalide")
-    }
-    return img, nil
+	img := canvas.NewImageFromReader(resp.Body, url)
+	if img == nil {
+		return nil, fmt.Errorf("image invalide")
+	}
+	return img, nil
 }
 
 type ImageCliquable struct {
-    widget.BaseWidget
-    Image *canvas.Image
-    OnTap func()
+	widget.BaseWidget
+	Image *canvas.Image
+	OnTap func()
 }
 
 func NewImageCliquable(img *canvas.Image, onTap func()) *ImageCliquable {
-    ic := &ImageCliquable{Image: img, OnTap: onTap}
-    ic.ExtendBaseWidget(ic)
-    return ic
+	ic := &ImageCliquable{Image: img, OnTap: onTap}
+	ic.ExtendBaseWidget(ic)
+	return ic
 }
 
 func (i *ImageCliquable) Tapped(_ *fyne.PointEvent) {
-    if i.OnTap != nil {
-        i.OnTap()
-    }
+	if i.OnTap != nil {
+		i.OnTap()
+	}
 }
 
 func (i *ImageCliquable) CreateRenderer() fyne.WidgetRenderer {
-    return widget.NewSimpleRenderer(i.Image)
+	return widget.NewSimpleRenderer(i.Image)
 }
 
 // extrait l'année (YYYY) depuis la date du premier album
 func yearFromDateString(d string) int {
-    if len(d) < 4 {
-        return 0
-    }
-    y, err := strconv.Atoi(d[:4])
-    if err != nil {
-        return 0
-    }
-    return y
+	if len(d) < 4 {
+		return 0
+	}
+	y, err := strconv.Atoi(d[:4])
+	if err != nil {
+		return 0
+	}
+	return y
 }
 
 func FiltrerArtistes(artistes []List_artist, opts FilterOptions) []List_artist {
-    var result []List_artist
-    for _, a := range artistes {
-        // Filtre création
-        if (opts.CreationMin != 0 && a.CreationDate < opts.CreationMin) ||
-            (opts.CreationMax != 0 && a.CreationDate > opts.CreationMax) {
-            continue
-        }
+	var result []List_artist
+	for _, a := range artistes {
+		// Filtre création
+		if (opts.CreationMin != 0 && a.CreationDate < opts.CreationMin) ||
+			(opts.CreationMax != 0 && a.CreationDate > opts.CreationMax) {
+			continue
+		}
 
-        // Filtre 1er album
-        if opts.FirstAlbumMin != 0 || opts.FirstAlbumMax != 0 {
-            year := yearFromDateString(a.FirstAlbum)
-            if year == 0 {
-                continue
-            }
-            if (opts.FirstAlbumMin != 0 && year < opts.FirstAlbumMin) ||
-                (opts.FirstAlbumMax != 0 && year > opts.FirstAlbumMax) {
-                continue
-            }
-        }
+		// Filtre 1er album
+		if opts.FirstAlbumMin != 0 || opts.FirstAlbumMax != 0 {
+			year := yearFromDateString(a.FirstAlbum)
+			if year == 0 {
+				continue
+			}
+			if (opts.FirstAlbumMin != 0 && year < opts.FirstAlbumMin) ||
+				(opts.FirstAlbumMax != 0 && year > opts.FirstAlbumMax) {
+				continue
+			}
+		}
 
-        // Filtre nb membres
-        if len(opts.MembersCounts) > 0 {
-            found := false
-            for _, v := range opts.MembersCounts {
-                if len(a.Members) == v {
-                    found = true
-                    break
-                }
-            }
-            if !found {
-                continue
-            }
-        }
+		// Filtre nb membres
+		if len(opts.MembersCounts) > 0 {
+			found := false
+			for _, v := range opts.MembersCounts {
+				if len(a.Members) == v {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
 
-        // Filtre lieux de concerts
-        if len(opts.Locations) > 0 {
-            rel, err := GetRelations(a.RelationsUrl)
-            if err != nil {
-                continue
-            }
-            matchLoc := false
-            for loc := range rel {
-                locLower := strings.ToLower(strings.ReplaceAll(loc, "_", " "))
-                for _, wanted := range opts.Locations {
-                    if strings.Contains(locLower, wanted) {
-                        matchLoc = true
-                        break
-                    }
-                }
-                if matchLoc {
-                    break
-                }
-            }
-            if !matchLoc {
-                continue
-            }
-        }
+		// Filtre lieux de concerts
+		if len(opts.Locations) > 0 {
+			rel, err := GetRelations(a.RelationsUrl)
+			if err != nil {
+				continue
+			}
+			matchLoc := false
+			for loc := range rel {
+				locLower := strings.ToLower(strings.ReplaceAll(loc, "_", " "))
+				for _, wanted := range opts.Locations {
+					if strings.Contains(locLower, wanted) {
+						matchLoc = true
+						break
+					}
+				}
+				if matchLoc {
+					break
+				}
+			}
+			if !matchLoc {
+				continue
+			}
+		}
 
-        result = append(result, a)
-    }
-    return result
+		result = append(result, a)
+	}
+	return result
 }
 
 func RechercherArtistes(artistes []List_artist, recherche string) []List_artist {
-    if recherche == "" {
-        return artistes
-    }
+	if recherche == "" {
+		return artistes
+	}
 
-    rechercheLower := strings.ToLower(recherche)
-    var result []List_artist
+	rechercheLower := strings.ToLower(recherche)
+	var result []List_artist
 
-    for _, a := range artistes {
-        if strings.Contains(strings.ToLower(a.Name), rechercheLower) {
-            result = append(result, a)
-        } else if strings.Contains(strings.ToLower(a.FirstAlbum), rechercheLower) {
-            result = append(result, a)
-        } else if strings.Contains(strconv.Itoa(a.CreationDate), recherche) {
-            result = append(result, a)
-        } else {
-            found := false
-            for _, membre := range a.Members {
-                if strings.Contains(strings.ToLower(membre), rechercheLower) {
-                    result = append(result, a)
-                    found = true
-                    break
-                }
-            }
-            if found {
-                continue
-            }
+	for _, a := range artistes {
+		if strings.Contains(strings.ToLower(a.Name), rechercheLower) {
+			result = append(result, a)
+		} else if strings.Contains(strings.ToLower(a.FirstAlbum), rechercheLower) {
+			result = append(result, a)
+		} else if strings.Contains(strconv.Itoa(a.CreationDate), recherche) {
+			result = append(result, a)
+		} else {
+			found := false
+			for _, membre := range a.Members {
+				if strings.Contains(strings.ToLower(membre), rechercheLower) {
+					result = append(result, a)
+					found = true
+					break
+				}
+			}
+			if found {
+				continue
+			}
 
-            // Recherche dans les locations de concerts
-            rel, err := GetRelations(a.RelationsUrl)
-            if err == nil {
-                for loc := range rel {
-                    locLower := strings.ToLower(strings.ReplaceAll(loc, "_", " "))
-                    if strings.Contains(locLower, rechercheLower) {
-                        result = append(result, a)
-                        break
-                    }
-                }
-            }
-        }
-    }
+			// Recherche dans les locations de concerts
+			rel, err := GetRelations(a.RelationsUrl)
+			if err == nil {
+				for loc := range rel {
+					locLower := strings.ToLower(strings.ReplaceAll(loc, "_", " "))
+					if strings.Contains(locLower, rechercheLower) {
+						result = append(result, a)
+						break
+					}
+				}
+			}
+		}
+	}
 
-    return result
+	return result
 }
